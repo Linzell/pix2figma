@@ -1,0 +1,21 @@
+{
+  "name": "@pix2figma/figma-plugin",
+  "version": "0.1.0",
+  "description": "Figma plugin that creates native layers from pix2figma DOM extractions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pix2figma/extractor": "workspace:*"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.100.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  },
+  "license": "MIT"
+}

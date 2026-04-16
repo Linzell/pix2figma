@@ -1,0 +1,18 @@
+{
+  "name": "Pix2Figma Screen Importer",
+  "id": "pix2figma-screen-importer",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": [
+      "http://localhost:1420",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:4321"
+    ]
+  }
+}

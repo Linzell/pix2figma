@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, -apple-system, sans-serif;
+      font-size: 12px;
+      color: #333;
+      padding: 12px;
+      background: #fff;
+    }
+    h2 { font-size: 14px; margin-bottom: 4px; }
+    .subtitle { font-size: 11px; color: #999; margin-bottom: 12px; }
+    .status {
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 11px;
+    }
+    .status.info { background: #eff6ff; color: #1d4ed8; }
+    .status.success { background: #f0fdf4; color: #15803d; }
+    .status.error { background: #fef2f2; color: #dc2626; }
+    .status.loading { background: #fefce8; color: #a16207; }
+    .screen-list {
+      list-style: none;
+      margin-bottom: 12px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .screen-list li {
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .screen-list li.done { background: #f0fdf4; }
+    .screen-list li.active { background: #eff6ff; }
+    .screen-list li.pending { background: #f9fafb; color: #9ca3af; }
+    .screen-list li.error { background: #fef2f2; }
+    .icon { width: 16px; text-align: center; }
+    .meta { color: #9ca3af; margin-left: auto; font-size: 10px; }
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+    button.primary { background: #3b82f6; color: white; }
+    button.primary:hover { background: #2563eb; }
+    button.primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    button.secondary { background: #f3f4f6; color: #374151; }
+    button.secondary:hover { background: #e5e7eb; }
+    .server-url {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .server-url input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .progress {
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #3b82f6;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+    .help-text {
+      font-size: 10px;
+      color: #9ca3af;
+      line-height: 1.5;
+      padding: 8px;
+      background: #f9fafb;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+    .help-text code {
+      background: #e5e7eb;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Pix2Figma Importer</h2>
+  <div class="subtitle">Import app screens as native Figma layers</div>
+
+  <div id="panel-dom">
+    <div class="server-url">
+      <input type="text" id="domServerUrl" value="http://localhost:5173" placeholder="Dev server URL" />
+      <button class="secondary" onclick="checkDomServer()" style="width:auto;padding:6px 12px;">Check</button>
+    </div>
+
+    <div id="domStatus" class="status info">
+      Click "Check" to see available extractions from the dev server.
+    </div>
+
+    <div class="help-text">
+      <strong>How to use:</strong><br/>
+      1. Navigate to a page in your app<br/>
+      2. Click the <strong>Figma Export</strong> button (bottom-right corner)<br/>
+      3. Name the page and click <strong>Extract</strong><br/>
+      4. Come back here and click <strong>Import</strong>
+    </div>
+
+    <ul class="screen-list" id="domScreenList"></ul>
+
+    <div class="progress" id="domProgress" style="display:none;">
+      <div class="progress-bar" id="domProgressBar" style="width:0%"></div>
+    </div>
+
+    <button class="primary" id="domImportBtn" onclick="importDomScreen()" disabled>Import Selected Screen</button>
+    <button class="primary" id="domImportAllBtn" onclick="importAllDomScreens()" disabled style="background:#6d28d9;">Import All Screens</button>
+  </div>
+
+  <button class="secondary" onclick="parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*')">Close</button>
+
+  <script>
+    var domScreens = [];
+    var selectedDomScreen = null;
+
+    function setDomStatus(msg, type) {
+      var box = document.getElementById('domStatus');
+      box.textContent = msg;
+      box.className = 'status ' + type;
+    }
+
+    function renderDomScreenList() {
+      var list = document.getElementById('domScreenList');
+      list.innerHTML = domScreens.map(function (s, i) {
+        var icon = '\u25CB';
+        var cls = 'pending';
+        if (s.status === 'done') { icon = '\u2713'; cls = 'done'; }
+        else if (s.status === 'active') { icon = '\u27F3'; cls = 'active'; }
+        else if (s.status === 'error') { icon = '\u2717'; cls = 'error'; }
+        else if (selectedDomScreen === s.id) { icon = '\u25CF'; cls = 'active'; }
+        var stateLabel = s.stateName && s.stateName !== 'Default' ? (' / ' + s.stateName) : '';
+        return '<li class="' + cls + '" onclick="selectDomScreen(\'' + s.id.replace(/'/g, "\\'") + '\')" style="cursor:pointer">'
+          + '<span class="icon">' + icon + '</span>'
+          + s.pageName + stateLabel
+          + '<span class="meta">' + (s.nodeCount || '?') + ' nodes</span>'
+          + '</li>';
+      }).join('');
+    }
+
+    function selectDomScreen(id) {
+      selectedDomScreen = id;
+      document.getElementById('domImportBtn').disabled = false;
+      renderDomScreenList();
+    }
+
+    async function checkDomServer() {
+      var baseUrl = document.getElementById('domServerUrl').value.replace(/\/$/, '');
+      setDomStatus('Checking dev server...', 'loading');
+
+      try {
+        var res = await fetch(baseUrl + '/__figma/screens');
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        var data = await res.json();
+        domScreens = data.map(function (s) { return Object.assign({}, s, { status: 'pending' }); });
+        renderDomScreenList();
+
+        if (domScreens.length === 0) {
+          setDomStatus('Connected, but no extractions yet. Use the Figma Export button in your app.', 'info');
+          document.getElementById('domImportBtn').disabled = true;
+          document.getElementById('domImportAllBtn').disabled = true;
+        } else {
+          setDomStatus('Connected! ' + domScreens.length + ' screen(s) available.', 'success');
+          document.getElementById('domImportAllBtn').disabled = false;
+        }
+      } catch (e) {
+        setDomStatus('Cannot connect. Make sure the dev server is running with @pix2figma/vite-plugin enabled.', 'error');
+        document.getElementById('domImportBtn').disabled = true;
+        document.getElementById('domImportAllBtn').disabled = true;
+      }
+    }
+
+    async function importDomScreen() {
+      if (!selectedDomScreen) return;
+      var baseUrl = document.getElementById('domServerUrl').value.replace(/\/$/, '');
+      var screen = domScreens.find(function (s) { return s.id === selectedDomScreen; });
+      if (!screen) return;
+
+      screen.status = 'active';
+      renderDomScreenList();
+      setDomStatus('Fetching DOM tree for "' + screen.pageName + '"...', 'loading');
+      document.getElementById('domProgress').style.display = 'block';
+      document.getElementById('domProgressBar').style.width = '20%';
+
+      try {
+        var res = await fetch(baseUrl + '/__figma/dom?id=' + encodeURIComponent(screen.id));
+        if (!res.ok) throw new Error('Failed to fetch: ' + res.status);
+        var data = await res.json();
+
+        document.getElementById('domProgressBar').style.width = '50%';
+        setDomStatus('Creating Figma layers for "' + screen.pageName + '"...', 'loading');
+
+        parent.postMessage({
+          pluginMessage: {
+            type: 'import-dom',
+            data: {
+              name: data.pageName || data.name,
+              stateName: data.stateName || 'Default',
+              viewport: data.viewport,
+              tree: data.tree,
+            }
+          }
+        }, '*');
+
+        await new Promise(function (resolve) {
+          var handler = function (event) {
+            var msg = event.data.pluginMessage;
+            if (msg && (msg.type === 'import-done' || msg.type === 'import-error')) {
+              window.removeEventListener('message', handler);
+              if (msg.type === 'import-done') {
+                screen.status = 'done';
+                var stateInfo = msg.stateName ? (' / ' + msg.stateName) : '';
+                setDomStatus('"' + screen.pageName + stateInfo + '" imported! ' + msg.nodeCount + ' layers created.', 'success');
+              } else {
+                screen.status = 'error';
+                setDomStatus('Error: ' + msg.message, 'error');
+              }
+              resolve();
+            }
+            if (msg && msg.type === 'progress') {
+              var pct = Math.min(50 + (msg.count / (screen.nodeCount || 500)) * 50, 95);
+              document.getElementById('domProgressBar').style.width = pct + '%';
+            }
+            if (msg && msg.type === 'import-status') {
+              setDomStatus(msg.status, 'loading');
+            }
+          };
+          window.addEventListener('message', handler);
+          setTimeout(function () {
+            window.removeEventListener('message', handler);
+            resolve();
+          }, 60000);
+        });
+
+        document.getElementById('domProgressBar').style.width = '100%';
+        renderDomScreenList();
+
+      } catch (e) {
+        screen.status = 'error';
+        setDomStatus('Error: ' + e.message, 'error');
+        renderDomScreenList();
+      }
+    }
+
+    async function importAllDomScreens() {
+      document.getElementById('domImportAllBtn').disabled = true;
+      document.getElementById('domImportBtn').disabled = true;
+
+      for (var i = 0; i < domScreens.length; i++) {
+        selectedDomScreen = domScreens[i].id;
+        renderDomScreenList();
+        await importDomScreen();
+      }
+
+      var doneCount = domScreens.filter(function (s) { return s.status === 'done'; }).length;
+      setDomStatus('Done! ' + doneCount + '/' + domScreens.length + ' screens imported.', 'success');
+      document.getElementById('domImportAllBtn').disabled = false;
+    }
+
+    window.addEventListener('message', function (event) {
+      if (event.data.pluginMessage && event.data.pluginMessage.type === 'error') {
+        setDomStatus('Error: ' + event.data.pluginMessage.message, 'error');
+      }
+    });
+  </script>
+</body>
+</html>
