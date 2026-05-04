@@ -9,6 +9,11 @@
 export { extractDOM, extractNode } from './extract';
 export type { ExtractOptions } from './extract';
 
+// ─── Permit Validation ────────────────────────────────────────────────────
+
+export { validatePermit, loadKiiwiTokens } from './permit';
+export type { PermitValidationConfig } from './permit';
+
 // ─── Overlay ──────────────────────────────────────────────────────────────
 
 export { createOverlay } from './overlay/overlay';
@@ -40,4 +45,8 @@ export type {
   ExtractionResult,
   StoredExtraction,
   Pix2FigmaOptions,
+  PermitViolationSeverity,
+  PermitViolationCategory,
+  PermitViolation,
+  PermitValidationResult,
 } from './types';

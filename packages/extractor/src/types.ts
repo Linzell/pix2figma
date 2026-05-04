@@ -221,6 +221,62 @@ export interface StoredExtraction {
   viewport: Viewport;
 }
 
+// ─── Permit Validation ────────────────────────────────────────────────────
+
+/**
+ * Severity of a permit violation.
+ * - `error`   — Hard block: action must not proceed, requires escalation
+ * - `warning` — Soft issue: permitted but should be flagged for review
+ */
+export type PermitViolationSeverity = 'error' | 'warning';
+
+/**
+ * Category of a permit violation, matching the Permis Design Avancé rules.
+ */
+export type PermitViolationCategory =
+  | 'non_kiiwi_color'        // Arbitrary hex not in Kiiwi tokens
+  | 'non_4px_spacing'        // Spacing value not in 4px scale
+  | 'detached_component'     // Component detached from library
+  | 'base_component_used'    // .Base variant used instead of "To use"
+  | 'non_ds_component'       // Component not from Kiiwi or Business
+  | 'accessibility_risk'     // Color used alone to convey information
+  | 'ux_writing_violation'   // Text doesn't follow UX writing guidelines
+  | 'missing_token';         // No matching Kiiwi token found
+
+/**
+ * A single permit violation found during validation.
+ */
+export interface PermitViolation {
+  /** Severity: error (hard block) or warning (review needed) */
+  severity: PermitViolationSeverity;
+  /** Category of the violation */
+  category: PermitViolationCategory;
+  /** Human-readable description */
+  message: string;
+  /** Path to the node in the DOM tree (e.g., "root > header > nav") */
+  nodePath: string;
+  /** The offending value (hex color, spacing px, text, etc.) */
+  value?: string | number;
+  /** Suggested fix */
+  suggestion?: string;
+}
+
+/**
+ * Result of validating an extraction tree against Kiiwi DS permit rules.
+ */
+export interface PermitValidationResult {
+  /** Whether the extraction passes all checks (no errors) */
+  valid: boolean;
+  /** Total violations found */
+  violationCount: number;
+  /** Error-level violations (hard blocks) */
+  errors: PermitViolation[];
+  /** Warning-level violations (review needed) */
+  warnings: PermitViolation[];
+  /** Summary for reporting */
+  summary: string;
+}
+
 // ─── Plugin Options ───────────────────────────────────────────────────────
 
 export interface Pix2FigmaOptions {

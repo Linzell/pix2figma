@@ -13,6 +13,8 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DomNode } from '@pix2figma/extractor';
+import { validatePermit } from '@pix2figma/extractor';
+import type { PermitValidationResult } from '@pix2figma/extractor';
 import type {
   StoredExtractionWithCount,
   ExtractionSummary,
@@ -246,11 +248,44 @@ export function createFigmaMiddleware(options: ResolvedOptions): Middleware {
 
           store.set(id, extraction);
 
+          // Run Kiiwi Design System permit validation on the extraction
+          let permitResult: PermitValidationResult | undefined;
+          try {
+            permitResult = validatePermit(tree);
+            if (!permitResult.valid || permitResult.warnings.length > 0) {
+              console.warn(
+                `[pix2figma] Permit validation for "${extraction.pageName}": ${permitResult.summary}`,
+              );
+            } else {
+              console.log(
+                `[pix2figma] Permit validation passed for "${extraction.pageName}"`,
+              );
+            }
+          } catch (err) {
+            // Non-fatal: permit validation should never block extraction storage
+            console.warn('[pix2figma] Permit validation error:', err);
+          }
+
           console.log(
             `[pix2figma] Stored extraction: "${extraction.pageName}" / "${extraction.stateName}" (${nodeCount} nodes)`,
           );
 
-          sendJson(res, 200, { ok: true, id, nodeCount });
+          sendJson(res, 200, {
+            ok: true,
+            id,
+            nodeCount,
+            permit: permitResult
+              ? {
+                  valid: permitResult.valid,
+                  violationCount: permitResult.violationCount,
+                  errorCount: permitResult.errors.length,
+                  warningCount: permitResult.warnings.length,
+                  summary: permitResult.summary,
+                  errors: permitResult.errors,
+                  warnings: permitResult.warnings,
+                }
+              : undefined,
+          });
         })
         .catch((err: Error) => {
           const isBodyTooLarge = err.message.includes('exceeds maximum size');
