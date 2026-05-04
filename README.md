@@ -38,17 +38,35 @@ bun run build
 
 ### Link into a consumer project
 
-```bash
-# In the monorepo -- register packages globally
-cd packages/extractor && bun link
-cd ../vite-plugin && bun link
-cd ../figma-plugin && bun link
+Add the pix2figma packages as workspace members in your consumer project's `package.json`:
 
-# In your Vite project
-bun link @pix2figma/extractor
-bun link @pix2figma/vite-plugin
-bun link @pix2figma/figma-plugin
+```jsonc
+{
+  "workspaces": [
+    "../pix2figma/packages/*"  // adjust path as needed
+  ],
+  "devDependencies": {
+    "@pix2figma/extractor": "workspace:*",
+    "@pix2figma/figma-plugin": "workspace:*",
+    "@pix2figma/vite-plugin": "workspace:*"
+  }
+}
 ```
+
+Then run `bun install`. Bun will symlink the packages into `node_modules/@pix2figma/`.
+
+> **Why workspaces?** The pix2figma packages use `workspace:*` to reference each other internally. The `link:` or `file:` protocols can't resolve those cross-references. Declaring them as workspace members lets Bun resolve the full dependency graph.
+
+The generated `figma-plugin/manifest.json` should point directly at the symlinked dist files (no copy script needed):
+
+```json
+{
+  "main": "../node_modules/@pix2figma/figma-plugin/dist/code.js",
+  "ui": "../node_modules/@pix2figma/figma-plugin/dist/ui.html"
+}
+```
+
+> Rebuilding the monorepo (`bun run build` in pix2figma) updates all consumer projects automatically since `node_modules/@pix2figma/*` are symlinks.
 
 ### Add to vite.config.ts
 
@@ -82,9 +100,7 @@ npx @pix2figma/vite-plugin init --name "My App Importer" --port 3000
 
 Then in Figma: **Plugins > Development > Import plugin from manifest** and point it to the generated `figma-plugin/manifest.json`.
 
-> Only the `manifest.json` lives in your project. `code.js` and `ui.html`
-> are resolved from `node_modules` -- rebuilding the monorepo updates all
-> consumer projects automatically.
+> Since `node_modules/@pix2figma/*` are symlinks, rebuilding the monorepo updates the dist files in-place -- no copy step needed.
 
 ### Options
 
